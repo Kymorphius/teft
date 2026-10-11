@@ -26,6 +26,7 @@
  */
 
 #import "iTermApplicationDelegate.h"
+#import <Sparkle/SUUpdaterDelegate.h>
 
 #import "AppearancePreferencesViewController.h"
 #import "ColorsMenuItemView.h"
@@ -175,6 +176,11 @@ static NSInteger gAppStateGeneration = 0;
 static NSString *LEGACY_DEFAULT_ARRANGEMENT_NAME = @"Default";
 static BOOL hasBecomeActive = NO;
 
+static BOOL IsTeftDevelopmentBuild(void) {
+    id suite = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"TeftDefaultsSuite"];
+    return [suite isKindOfClass:[NSString class]] && [suite length] > 0;
+}
+
 @interface iTermApplicationDelegate () <
     iTermGraphCodable,
     iTermOrphanServerAdopterDelegate,
@@ -182,7 +188,8 @@ static BOOL hasBecomeActive = NO;
     iTermRestorableStateControllerDelegate,
     iTermUntitledWindowStateMachineDelegate,
     NSMenuDelegate,
-    NSMenuItemValidation>
+    NSMenuItemValidation,
+    SUUpdaterDelegate>
 
 @property(nonatomic, readwrite) BOOL workspaceSessionActive;
 
@@ -376,6 +383,9 @@ static NSModalResponse iTermCompareRenderingRunModal(id self, SEL _cmd) {
 #pragma mark - Interface Builder
 
 - (void)awakeFromNib {
+    if (IsTeftDevelopmentBuild()) {
+        suUpdater.delegate = self;
+    }
     [ArchivesMenuBuilder setShared:[[ArchivesMenuBuilder alloc] initWithMenuItem:_archivesMenuItem]];
 
     NSMenu *viewMenu = [self topLevelViewWithIdentifier:@"View"];
@@ -440,6 +450,9 @@ static NSModalResponse iTermCompareRenderingRunModal(id self, SEL _cmd) {
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     const SEL action = [menuItem action];
+    if (action == @selector(checkForUpdatesFromMenu:) && IsTeftDevelopmentBuild()) {
+        return NO;
+    }
     if (action == @selector(newSessionInTabAtIndex:) ||
         action == @selector(newSession:) ||
         action == @selector(newSessionWithSameProfile:)) {
@@ -2434,7 +2447,7 @@ static iTermKeyEventReplayer *gReplayer;
 #pragma mark - Startup Helpers
 
 - (void)complainIfNightlyBuildIsTooOld {
-    if (![NSBundle it_isNightlyBuild]) {
+    if (IsTeftDevelopmentBuild() || ![NSBundle it_isNightlyBuild]) {
         return;
     }
     NSTimeInterval age = -[[NSBundle it_buildDate] timeIntervalSinceNow];
@@ -2594,7 +2607,14 @@ static iTermKeyEventReplayer *gReplayer;
 }
 
 - (IBAction)checkForUpdatesFromMenu:(id)sender {
+    if (IsTeftDevelopmentBuild()) {
+        return;
+    }
     [suUpdater checkForUpdates:(sender)];
+}
+
+- (BOOL)updaterMayCheckForUpdates:(SUUpdater *)updater {
+    return !IsTeftDevelopmentBuild();
 }
 
 // Depth-first search for the menu item wired to a given action, so a

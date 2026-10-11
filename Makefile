@@ -678,9 +678,19 @@ paranoid-pwmadapters: force
 deps: force fatlibsixel CoreParse NMSSH bindeps libgit2 sparkle librailroad_dsl sfsymbolenum pwmadapters
 
 sfsymbolenum:
-	cp submodules/SFSymbolEnum/Sources/SFSymbolEnum/* ThirdParty/SFSymbolEnum
-	cd submodules/SFSymbolEnum && swift generateSFSymbolEnum.swift --objc > ../../ThirdParty/SFSymbolEnum/SFSymbolEnum.h
-	cd submodules/SFSymbolEnum && swift generateSFSymbolEnum.swift --objc-impl > ../../ThirdParty/SFSymbolEnum/SFSymbolEnum.m
+	@if [ -f "/Applications/SF Symbols beta.app/Contents/Resources/Metadata/name_availability.plist" ] || \
+	    [ -f "/Applications/SF Symbols.app/Contents/Resources/Metadata-Public/name_availability.plist" ] || \
+	    [ -f "/Applications/SF Symbols.app/Contents/Resources/Metadata/name_availability.plist" ]; then \
+		cp submodules/SFSymbolEnum/Sources/SFSymbolEnum/* ThirdParty/SFSymbolEnum && \
+		cd submodules/SFSymbolEnum && \
+		    swift generateSFSymbolEnum.swift --objc > ../../ThirdParty/SFSymbolEnum/SFSymbolEnum.h && \
+		    swift generateSFSymbolEnum.swift --objc-impl > ../../ThirdParty/SFSymbolEnum/SFSymbolEnum.m; \
+	else \
+		test -s ThirdParty/SFSymbolEnum/SFSymbolEnum.swift && \
+		    test -s ThirdParty/SFSymbolEnum/SFSymbolEnum.h && \
+		    test -s ThirdParty/SFSymbolEnum/SFSymbolEnum.m || exit 1; \
+		echo "SF Symbols metadata is unavailable; using the committed symbol definitions."; \
+	fi
 
 # Regenerate NSCharacterSet+iTerm.m and iTermCharacterSets.m from latest Unicode data.
 # Run this when a new Unicode version is released.

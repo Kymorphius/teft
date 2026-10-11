@@ -27,6 +27,8 @@ enum AppleIntelligenceRunnerError: Error {
 // pair still recomputes; the tab-title feature always passes the same pair, so after the
 // first generation these are free. A FAILED count is not cached, so it retries and the
 // caller's estimate fallback applies until a real count lands.
+// Xcode 26.2 does not expose tokenCount, even when running on a newer OS.
+#if compiler(>=6.4)
 @available(macOS 26.4, *)
 private actor TokenCountCache {
     static let shared = TokenCountCache()
@@ -57,6 +59,8 @@ private actor TokenCountCache {
     }
 }
 
+#endif
+
 @available(macOS 26, *)
 enum AppleIntelligenceRunner {
     /// Sends `system` as the session instructions and `user` as the prompt,
@@ -66,7 +70,8 @@ enum AppleIntelligenceRunner {
     static func complete(system: String?, user: String, maxTokens: Int) async throws -> String {
         let session = LanguageModelSession(model: .default,
                                            instructions: system ?? "")
-        return try await session.respond(to: user).content
+        let response = try await session.respond(to: user)
+        return response.content
     }
 
     /// Guided, greedy on-device generation. Unlike `complete`, this forces the
@@ -83,10 +88,11 @@ enum AppleIntelligenceRunner {
                                              as type: Content.Type) async throws -> Content {
         let session = LanguageModelSession(model: .default,
                                            instructions: system ?? "")
-        let options = GenerationOptions(samplingMode: .greedy)
-        return try await session.respond(to: user,
-                                         generating: type,
-                                         options: options).content
+        let options = greedyOptions()
+        let response = try await session.respond(to: user,
+                                                 generating: type,
+                                                 options: options)
+        return response.content
     }
 
     /// Names the visible screen for a tab title, fitting the on-device model's
@@ -97,8 +103,9 @@ enum AppleIntelligenceRunner {
     /// an output reserve all fit the budget. Without this a large screen throws
     /// `exceededContextWindowSize` and the tab gets no title at all.
     ///
-    /// Token counts come from the model's own tokenizer (`tokenCount(for:)`),
-    /// so the budget is exact for this model rather than a character estimate.
+    /// When built with the newer SDK and running on macOS 26.4+, token counts
+    /// come from the model's tokenizer. Older SDKs use the conservative estimate
+    /// below even on newer systems, because they cannot call `tokenCount(for:)`.
     static func generateTabTitle<Content: Generable>(instructions: String,
                                                      context: String,
                                                      screen: String,
@@ -127,8 +134,20 @@ enum AppleIntelligenceRunner {
         // budgetLeavesRoomForScreen so the assert below tests the REAL budget (with exact
         // schema tokens) rather than a fixed-96 estimate that can pass while the true budget
         // is floored to nothing.
+        // Older SDKs have no tokenizer API. Keep the existing pre-26.4
+        // allowance and conservative estimate; this can trim extra screen text.
+        let reserve = max(160, instructionEstimate + 96)
+        let estimatedBudget = Self.promptBudget(maxContextTokens: maxContextTokens,
+                                       outputReserve: outputReserve,
+                                       instructionTokens: reserve,
+                                       schemaTokens: 0)
+        let estimatedCount: (String) async throws -> Int = {
+            onProgress()
+            return Self.estimatedTokenUpperBound($0)
+        }
         let budget: Int
         let count: (String) async throws -> Int
+#if compiler(>=6.4)
         if #available(macOS 26.4, *) {
             let model = SystemLanguageModel.default
             // Fall back to a conservative estimate, not 0, when a count is
@@ -149,15 +168,13 @@ enum AppleIntelligenceRunner {
             // permanently untitleable. The budget calc already falls back this way.
             count = { onProgress(); return (try? await model.tokenCount(for: $0)) ?? Self.estimatedTokenUpperBound($0) }
         } else {
-            // Reserve the estimated instruction tokens (which alone can exceed the
-            // old flat 160) plus a schema allowance.
-            let reserve = max(160, instructionEstimate + 96)
-            budget = Self.promptBudget(maxContextTokens: maxContextTokens,
-                                       outputReserve: outputReserve,
-                                       instructionTokens: reserve,
-                                       schemaTokens: 0)
-            count = { onProgress(); return Self.estimatedTokenUpperBound($0) }
+            budget = estimatedBudget
+            count = estimatedCount
         }
+#else
+        budget = estimatedBudget
+        count = estimatedCount
+#endif
         let fits: (String) async throws -> Bool = { try await count($0) <= budget }
 
         // The max(256, ...) floor keeps budget positive, but a floored-up budget
@@ -221,7 +238,7 @@ enum AppleIntelligenceRunner {
         // window, throwing exceededContextWindowSize (caught as .produced(nil), which
         // stamps the screen as permanently untitleable). A 2-to-4-word title needs far
         // fewer than 256 tokens, so this never truncates a real title.
-        let options = GenerationOptions(samplingMode: .greedy, maximumResponseTokens: outputReserve)
+        let options = greedyOptions(maximumResponseTokens: outputReserve)
         // The whole-line fit search keeps only whole lines from the tail, so if the
         // single last visible line alone exceeds the budget (a soft-wrapped logical
         // line spanning most of a large grid, e.g. a pasted minified blob) it
@@ -234,15 +251,27 @@ enum AppleIntelligenceRunner {
                                                          fits: { try await fits(promptWithScreenBody($0)) })
             if !body.isEmpty {
                 onProgress()
-                return try await session.respond(to: promptWithScreenBody(body),
-                                                 generating: type,
-                                                 options: options).content
+                let response = try await session.respond(to: promptWithScreenBody(body),
+                                                         generating: type,
+                                                         options: options)
+                return response.content
             }
         }
         onProgress()
-        return try await session.respond(to: prompt(keepingLastLines: kept),
-                                         generating: type,
-                                         options: options).content
+        let response = try await session.respond(to: prompt(keepingLastLines: kept),
+                                                 generating: type,
+                                                 options: options)
+        return response.content
+    }
+
+    // FoundationModels renamed this argument in the SDK bundled with Swift 6.4.
+    // Preserve greedy sampling and the same response limit on both SDK versions.
+    private static func greedyOptions(maximumResponseTokens: Int? = nil) -> GenerationOptions {
+#if compiler(>=6.4)
+        return GenerationOptions(samplingMode: .greedy, maximumResponseTokens: maximumResponseTokens)
+#else
+        return GenerationOptions(sampling: .greedy, maximumResponseTokens: maximumResponseTokens)
+#endif
     }
 
     // Hard-truncates `line` by characters (dropping from the tail) to the longest
