@@ -1,209 +1,54 @@
-<div align="center">
+# Teft
 
-# iTerm2
+Teft 是面向 macOS 的终端应用，基于 [gnachman/iTerm2](https://github.com/gnachman/iTerm2) 的独立 fork。我们希望把终端与自己的系统结合，逐步接入 Agent Deck、World Store 和 PolarisAtlas；这些深度集成目前仍是计划，尚未实现。
 
-### macOS Terminal Replacement
+目前提供源码与开发构建流程。arm64 开发版已使用 Xcode 26.2、Swift 6.2.3 成功构建，并在运行 macOS 26.5.2 的 MacBook Pro 上安装、启动；尚未验证从干净克隆完成整套构建，也没有正式签名、公证的发行包。
 
-![Version](https://img.shields.io/badge/version-3.6-blue.svg)
-![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
+## 当前状态
 
-**[Website](https://iterm2.com)** • **[Downloads](https://iterm2.com/downloads.html)** • **[Documentation](https://iterm2.com/documentation.html)** • **[Features](https://iterm2.com/features.html)**
+- 应用名称和主可执行文件为 `Teft`，主 bundle identifier 为 `com.teft.app`。
+- 自有辅助组件使用 `com.teft.app.sandboxed-worker`、`com.teft.app.pidinfo` 和 `com.teft.app.import-status`。
+- 主包及各语言的权限说明已同步品牌，尚未完成原生权限弹窗及完整 UI 验收；更换应用标识不代表获得 Computer Use 授权。
+- 上游 Sparkle 更新已禁用。开发构建在独立目录中暂存，不覆盖已安装的 iTerm2。
 
-</div>
+## 从源码构建
 
----
+需要 macOS、完整 Xcode 和 Homebrew；具体工具及原生依赖以 `doctor` 的检查结果为准。确认依赖就绪后，在仓库根目录依次执行：
 
-## About
-
-iTerm2 is a powerful terminal emulator for macOS that brings the terminal into the modern age with features you never knew you always wanted.
-
-### Key Features
-
-- **tmux Integration** - Native iTerm2 windows/tabs replace tmux's text-based interface. Run tmux -CC and tmux windows become real macOS windows. Sessions persist through crashes, SSH disconnects, and even app upgrades. Collaborate by having two people attach to the same session.
-- **Shell Integration** - Deep shell awareness that tracks commands, directories, hostnames, and usernames. Enables click-to-download files via SCP, drag-and-drop uploads, command history per host, recent directories by "frecency," and marks at each prompt.
-- **AI Chat** - Built-in LLM chat window that can optionally interact with terminal contents. Link sessions to get context-aware help, run commands on your behalf, or explain output with annotations.
-- **Inline Images** - Display images (including animated GIFs) directly in the terminal. Use imgcat to view photos, charts, or visual output without leaving your workflow.
-- **Automatic Profile Switching** - Terminal appearance changes automatically based on hostname, username, directory, or running command. SSH to production? Background turns red. Different environments get different visual contexts.
-- **Dedicated Hotkey Windows** - System-wide hotkey summons a terminal that slides down from the top of the screen (or any edge), even over fullscreen apps. Pin it or let it auto-hide.
-- **Session Restoration** - Sessions run in long-lived server processes. If iTerm2 crashes or upgrades, your shells keep running. When iTerm2 restarts, it reconnects to your sessions exactly where you left off.
-- **Built-in Web Browser** - Browser profiles integrate web browsing into iTerm2's window/tab/pane hierarchy. Copy mode, triggers, AI chat, and other terminal features work in browser sessions.
-- **Configurable Status Bar** - Per-session status bar showing git branch, CPU/memory graphs, current directory, hostname, custom interpolated strings, or Python API components.
-- **Triggers** - Regex patterns that fire actions when matched: highlight text, run commands, send notifications, open password manager, set marks, or invoke Python scripts.
-- **Smart Selection** - Quad-click selects semantic objects (URLs, file paths, email addresses, quoted strings). Right-click for context actions. Cmd-click to open.
-- **Copy Mode** - Vim-like keyboard selection. Navigate and select text without touching the mouse. Works with marks to jump between command prompts.
-- **Instant Replay** - Scrub backward through terminal history to see exactly what was on screen at any moment, with timestamps. Perfect for catching fleeting errors.
-- **Python Scripting API** - Full automation and customization via Python. Create custom status bar components, triggers, menu items, or entirely new features.
-- **Open Quickly** - Cmd-Shift-O opens a search across all sessions by tab title, command, hostname, directory, or badge. Navigate large session collections instantly.
-
----
-
-## Installation
-
-### Download
-
-Get the latest version from [iterm2.com/downloads](https://iterm2.com/downloads.html)
-
-For the bleeding edge without building, try the [nightly build](https://iterm2.com/nightly/latest).
-
-### Build from Source
-
-> **Note:** Development builds may be less stable than official releases.
-
-#### Prerequisites
-
-- No manual prerequisites. `make setup` will install [Homebrew](https://brew.sh/), Xcode,
-  Rust, and all other dependencies, prompting for confirmation before each privileged step.
-
-#### Clone
-
-```bash
-git clone https://github.com/gnachman/iTerm2.git
+```sh
+git clone https://github.com/Kymorphius/teft.git
+cd teft
+tools/teft.sh prepare
+tools/teft.sh doctor
+tools/teft.sh deps
+tools/teft.sh build
+tools/teft.sh run
 ```
 
-#### Setup (first time)
+`prepare` 初始化子模块，`deps` 为当前 Xcode 重建原生依赖，`build` 创建版本化的 `Teft.app`，`run` 通过 macOS Launch Services 启动最新产物。开发配置 suite 取仓库目录名：上述克隆使用 `teft`，不会强制使用本地开发目录的 `system-term`。切换构建前先正常退出正在运行的 Teft。
 
-```bash
-make setup
+详细的产物路径、日志、运行隔离及当前限制见 [Teft 开发说明](TEFT.md)。权限说明的 7 项回归测试可单独运行：
+
+```sh
+python3 tests/test_teft_stage_branding.py
 ```
 
-`make setup` is interactive and will prompt for confirmation before any privileged or
-security-sensitive operation. It performs the following steps:
+GitHub Actions 会运行这组品牌回归测试并检查启动脚本语法；它不代替 macOS 原生构建和交互验收。
 
-- **Homebrew** -- Installs [Homebrew](https://brew.sh/) via its official install script
-  if not already present. Prompts before running the installer (which requires sudo).
-- **Xcode** -- If no Xcode is selected via `xcode-select`, installs
-  [xcodes](https://github.com/XcodesOrg/xcodes) (via Homebrew) and
-  [aria2](https://aria2.github.io/) (for faster downloads), then either selects an
-  existing `/Applications/Xcode*.app` or downloads the latest Xcode automatically.
-  Prompts before running `sudo xcode-select` and before accepting the Xcode license.
-- **Rust** -- Installs [rustup](https://rustup.rs) via the official `curl | sh`
-  installer if not already present. Prompts before executing the script.
-- **Homebrew packages** -- Installs cmake, pkg-config, automake, perl, and python3 if
-  missing. If `brew link python@3` would overwrite existing symlinks, prompts for
-  confirmation before proceeding.
-- **SF Symbols** -- Installs the SF Symbols cask (a `.pkg` installer that requires
-  sudo). Prompts before attempting the install; continues without it if declined.
-- **Python/Rust packages** -- Installs pyobjc (via pip) and cbindgen (via cargo) if not
-  already present.
-- **Submodules and toolchains** -- Initializes git submodules, adds the x86_64 Rust
-  target, and downloads the Metal toolchain.
+如需跟踪上游，可在首次克隆后添加 remote：
 
-To skip all confirmation prompts, use `make dangerous-setup` instead.
-
-After setup, compile native dependencies and build:
-
-```bash
-make paranoid-deps   # compile OpenSSL, libsixel, libgit2, Sparkle, etc. (sandboxed)
-make                 # build iTerm2
+```sh
+git remote add upstream https://github.com/gnachman/iTerm2.git
 ```
 
-Re-run `make paranoid-deps` whenever your active Xcode version changes -- the file `last-xcode-version` tracks which version was last used.
+## 贡献与反馈
 
-If your Xcode version differs from the one committed in `last-xcode-version` (e.g. you're on an older machine), suppress the noise without committing your local version:
+Teft 的问题和改动请提交到[本仓库](https://github.com/Kymorphius/teft)。上游的终端功能资料见 [iTerm2 文档](https://iterm2.com/documentation.html)，构建与开发约定见 [AGENTS.md](AGENTS.md) 和 [CLAUDE.md](CLAUDE.md)。
 
-```bash
-git update-index --skip-worktree last-xcode-version
-```
+## 致谢与许可证
 
-To undo: `git update-index --no-skip-worktree last-xcode-version`
+Teft 保留 iTerm2 的上游历史、版权及许可证声明。感谢 [George Nachman](https://github.com/gnachman) 和 [iTerm2 贡献者](https://github.com/gnachman/iTerm2/graphs/contributors) 提供的基础。
 
-#### Build
+本仓库保留的 Sponsor 链接用于支持 iTerm2 上游开发。
 
-```bash
-make Development
-```
-
-#### Run
-
-```bash
-make run
-```
-
-#### Architecture
-
-Builds target your native architecture by default. To produce a universal (arm64 + x86_64) binary:
-
-```bash
-UNIVERSAL=1 make Development
-```
-
-#### Code signing
-
-Code signing is disabled by default to keep contributor builds simple. To enable it with the project's signing identity:
-
-```bash
-SIGNED=1 make Development
-```
-
-#### Building in Xcode
-
-If you prefer building from Xcode instead of the command line:
-
-1. Complete the **Clone** and **Setup** steps above.
-2. Configure code signing with your team ID:
-
-   ```bash
-   tools/set_team_id.sh YOUR_TEAM_ID
-   ```
-
-   This script updates `DEVELOPMENT_TEAM` in all Xcode project files (iTerm2 and its dependencies like Sparkle, SwiftyMarkdown, etc.) so code signing works with your identity.
-
-   **To find your team ID:** Open Keychain Access, find your "Apple Development" or "Developer ID" certificate, and look for the 10-character string in parentheses (e.g., "H7V7XYVQ7D").
-
-   **No Developer account?** Skip this step and select "Sign to Run Locally" in Xcode's Signing & Capabilities tab.
-
-3. Open `iTerm2.xcodeproj` in Xcode.
-4. Edit Scheme (Cmd-<) and set Build Configuration to **Development**.
-5. Press Cmd-R to build and run.
-
----
-
-## Development
-
-### Contributing
-
-We welcome contributions! Please read our [contribution guide](https://gitlab.com/gnachman/iterm2/-/wikis/How-to-Contribute) before submitting pull requests.
-
----
-
-## Bug Reports & Issues
-
-- **File bugs:** [iterm2.com/bugs](https://iterm2.com/bugs)
-- **Issue tracker:** [GitLab Issues](https://gitlab.com/gnachman/iterm2/issues)
-
-> **Note:** We use GitLab for issues because it provides better support for attachments.
-
----
-
-## Resources
-
-| Resource         | Link                                                              |
-| ---------------- | ----------------------------------------------------------------- |
-| Official Website | [iterm2.com](https://iterm2.com)                                  |
-| Documentation    | [iterm2.com/documentation](https://iterm2.com/documentation.html) |
-| Community        | [iTerm2 Discussions](https://gitlab.com/gnachman/iterm2/-/issues) |
-| Downloads        | [iterm2.com/downloads](https://iterm2.com/downloads.html)         |
-
----
-
-## License
-
-iTerm2 is distributed under the [GPLv3](LICENSE) license.
-
----
-
-## Support
-
-If you love iTerm2, consider:
-
-- Starring this repository
-- Spreading the word
-- [Sponsoring development](https://iterm2.com/donate.html)
-
----
-
-<div align="center">
-
-**Made by [George Nachman](https://github.com/gnachman) and [contributors](https://github.com/gnachman/iTerm2/graphs/contributors)**
-
-</div>
+许可证原文见 [LICENSE](LICENSE)、[COPYING](COPYING) 和 [README.license](README.license)。第三方组件保留各自许可证，例如 [Sparkle](ThirdParty/Sparkle/LICENSE)、[CoreParse](ThirdParty/CoreParse/LICENSE)、[ColorPicker](ColorPicker/LICENSE)；其余声明随 [ThirdParty](ThirdParty/)、[子模块](.gitmodules)及各组件源码保留。

@@ -59,7 +59,9 @@ case "$command" in
     status)
         branch="$(git branch --show-current)"
         head="$(git rev-parse HEAD)"
-        upstream="$(git remote get-url upstream)"
+        if ! upstream="$(git remote get-url upstream 2>/dev/null)"; then
+            upstream="(not configured)"
+        fi
         printf 'Project: Teft\nBranch: %s\nHEAD: %s\nUpstream: %s\n\nSubmodules:\n' \
             "${branch:-(detached)}" "$head" "$upstream"
         git submodule status --recursive
