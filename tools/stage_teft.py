@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create an ad-hoc signed Teft development copy without changing app identity."""
+"""Create an ad-hoc signed development app with Teft’s product identity."""
 
 import argparse
 import codecs
@@ -17,6 +17,16 @@ from xml.parsers.expat import ExpatError
 
 
 BRAND_KEYS = ("CFBundleName", "CFBundleDisplayName")
+BUNDLE_IDENTIFIER = "com.teft.app"
+OWNED_HELPERS = (
+    ("Contents/XPCServices/iTerm2SandboxedWorker.xpc",
+     "com.iterm2.sandboxed-worker", "com.teft.app.sandboxed-worker",
+     "TeftSandboxedWorkerServiceName"),
+    ("Contents/XPCServices/pidinfo.xpc",
+     "com.iterm2.pidinfo", "com.teft.app.pidinfo", "TeftProcessInfoServiceName"),
+    ("Contents/MacOS/iTerm2ImportStatus.app",
+     "com.googlecode.iterm2.iTerm2ImportStatus", "com.teft.app.import-status", None),
+)
 TOKEN = re.compile(
     r'(?P<space>\s+)|(?P<comment>//[^\r\n]*|/\*.*?\*/)|'
     r'(?P<quoted>"(?:\\.|[^"\\])*")|'
@@ -188,6 +198,8 @@ def stage(source_app, output_dir, suite):
     executable_name = original.get("CFBundleExecutable")
     if not isinstance(identifier, str) or not identifier:
         raise StageError("Source app has no valid CFBundleIdentifier.")
+    if identifier not in ("com.googlecode.iterm2", BUNDLE_IDENTIFIER):
+        raise StageError(f"Unexpected source app identity: {identifier}")
     if (
         not isinstance(executable_name, str)
         or not executable_name
@@ -210,17 +222,35 @@ def stage(source_app, output_dir, suite):
     print(f"Staging directory (retained on failure): {version_dir}", file=sys.stderr)
     shutil.copytree(source, app, symlinks=True)
     check_staged_links(app)
+    expected_plists = {path: read_plist(path) for path in app.rglob("Info.plist")}
     staged_info = app / "Contents" / "Info.plist"
     brand_plist(staged_info, app, disable_updates=True)
     staged_settings = read_plist(staged_info)
     staged_settings["TeftDefaultsSuite"] = suite
     staged_settings["SUDefaultsDomain"] = suite
+    staged_settings["CFBundleIdentifier"] = BUNDLE_IDENTIFIER
+    for relative_path, upstream_id, teft_id, service_key in OWNED_HELPERS:
+        helper_info = app / relative_path / "Contents" / "Info.plist"
+        helper_settings = expected_plists.get(helper_info)
+        if not helper_settings or helper_settings.get("CFBundleIdentifier") not in (upstream_id, teft_id):
+            raise StageError(f"Missing or unexpected owned helper: {relative_path}")
+        helper_settings = helper_settings.copy()
+        helper_settings["CFBundleIdentifier"] = teft_id
+        expected_plists[helper_info] = helper_settings
+        write_contents(helper_info, plistlib.dumps(helper_settings, sort_keys=False), app)
+        if service_key:
+            staged_settings[service_key] = teft_id
     write_contents(staged_info, plistlib.dumps(staged_settings, sort_keys=False), app)
     for strings_path in sorted((app / "Contents" / "Resources").glob("*.lproj/InfoPlist.strings")):
         if not inside(strings_path.resolve(), app):
             raise StageError(f"Localized strings point outside the staged app: {strings_path}")
         brand_strings(strings_path, app)
     codesign("--force", "--deep", "--sign", "-", str(app))
+    # Apply explicit identifiers only to the owned bundles, never with --deep.
+    # Passing --identifier together with --deep would also rename framework signatures.
+    for relative_path, _, teft_id, _ in OWNED_HELPERS:
+        codesign("--force", "--sign", "-", "--identifier", teft_id, str(app / relative_path))
+    codesign("--force", "--sign", "-", "--identifier", BUNDLE_IDENTIFIER, str(app))
     codesign("--verify", "--deep", "--strict", str(app))
     readback = read_plist(staged_info)
     expected = original.copy()
@@ -229,8 +259,14 @@ def stage(source_app, output_dir, suite):
     expected["TeftDefaultsSuite"] = suite
     expected["SUDefaultsDomain"] = suite
     expected["SUEnableAutomaticChecks"] = False
-    if readback != expected:
-        raise StageError("Signed app property-list readback does not match the allowed changes.")
+    expected["CFBundleIdentifier"] = BUNDLE_IDENTIFIER
+    for _, _, teft_id, service_key in OWNED_HELPERS:
+        if service_key:
+            expected[service_key] = teft_id
+    expected_plists[staged_info] = expected
+    for path, expected_settings in expected_plists.items():
+        if read_plist(path) != expected_settings:
+            raise StageError(f"Signed property-list readback differs from allowed changes: {path}")
     staged_executable = app / "Contents" / "MacOS" / executable_name
     if not staged_executable.is_file() or not os.access(staged_executable, os.X_OK):
         raise StageError(f"Staged executable is missing or not executable: {staged_executable}")

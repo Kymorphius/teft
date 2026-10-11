@@ -17,7 +17,10 @@
         if (sSandboxedWorkerConnection) {
             return sSandboxedWorkerConnection;
         }
-        sSandboxedWorkerConnection = [[NSXPCConnection alloc] initWithServiceName:@"com.iterm2.sandboxed-worker"];
+        id configuredServiceName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"TeftSandboxedWorkerServiceName"];
+        NSString *serviceName = ([configuredServiceName isKindOfClass:[NSString class]] &&
+                                 [configuredServiceName length] > 0) ? configuredServiceName : @"com.iterm2.sandboxed-worker";
+        sSandboxedWorkerConnection = [[NSXPCConnection alloc] initWithServiceName:serviceName];
         if (!sSandboxedWorkerConnection) {
             return nil;
         }

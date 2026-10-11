@@ -86,7 +86,10 @@ typedef void (^iTermRecentBranchFetchCallback)(NSArray<NSString *> *);
 }
 
 - (void)connect {
-    _connectionToService = [[NSXPCConnection alloc] initWithServiceName:@"com.iterm2.pidinfo"];
+    id configuredServiceName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"TeftProcessInfoServiceName"];
+    NSString *serviceName = ([configuredServiceName isKindOfClass:[NSString class]] &&
+                             [configuredServiceName length] > 0) ? configuredServiceName : @"com.iterm2.pidinfo";
+    _connectionToService = [[NSXPCConnection alloc] initWithServiceName:serviceName];
     _connectionToService.remoteObjectInterface = [NSXPCInterface interfaceWithProtocol:@protocol(pidinfoProtocol)];
     [_connectionToService resume];
 

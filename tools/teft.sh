@@ -98,9 +98,17 @@ from pathlib import Path
 import sys
 
 root = Path(sys.argv[1])
+sys.path.insert(0, str(root / "tools"))
+from stage_teft import BUNDLE_IDENTIFIER, read_plist
+
 record = json.loads((root / "tmp/teft-stage.json").read_text())
+if record.get("bundle_identifier") != BUNDLE_IDENTIFIER:
+    raise SystemExit("Build the current Teft identity first: tools/teft.sh build")
 executable = Path(record["executable_path"]).resolve(strict=True)
 executable.relative_to((root / "build/teft/staged").resolve())
+info = read_plist(executable.parent.parent / "Info.plist")
+if info.get("CFBundleIdentifier") != BUNDLE_IDENTIFIER:
+    raise SystemExit("The staged app does not have the expected Teft identity")
 print(executable)
 PY
         )"

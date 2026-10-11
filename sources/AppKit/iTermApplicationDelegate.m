@@ -1427,8 +1427,11 @@ void TurnOnDebugLoggingAutomatically(void) {
     [iTermClippingsGutterPanelRegistration register];
     [iTermInlineChatGutterPanelRegistration register];
 
-    DLog(@"migrateApplicationSupportDirectoryIfNeeded");
-    [iTermMigrationHelper migrateApplicationSupportDirectoryIfNeeded];
+    if (!IsTeftDevelopmentBuild()) {
+        // The old iTerm directory belongs to the upstream app, not this Teft suite.
+        DLog(@"migrateApplicationSupportDirectoryIfNeeded");
+        [iTermMigrationHelper migrateApplicationSupportDirectoryIfNeeded];
+    }
     DLog(@"migrate OpenAI key");
     [iTermMigrationHelper migrateOpenAIKeyIfNeeded];
     DLog(@"buildScriptMenu");
@@ -1607,7 +1610,10 @@ void TurnOnDebugLoggingAutomatically(void) {
     // discovered tag resolves synchronously at launch instead of falling through
     // to the global default provider while /api/tags is fetched.
     [[iTermOllamaModelCache shared] loadPersistedModels];
-    [[iTermLaunchServices sharedInstance] registerForiTerm2Scheme];
+    if (!IsTeftDevelopmentBuild()) {
+        // Preserve the user's existing handler for the upstream iterm2 URL scheme.
+        [[iTermLaunchServices sharedInstance] registerForiTerm2Scheme];
+    }
     // Once a day at most, check for a newer uv (silently replace it) and refresh the
     // iterm2 module in provisioned basic-script venvs. A no-op until uv is installed.
     // Skipped under unit tests to avoid network access.

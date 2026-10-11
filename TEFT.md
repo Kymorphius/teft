@@ -26,7 +26,9 @@ tools/teft.sh run
 
 ## 品牌、更新与边界
 
-开发产物显示名称 `CFBundleName` 和 `CFBundleDisplayName` 为 `Teft`；主 bundle identifier 仍是 `com.googlecode.iterm2`，可执行文件仍为 `iTerm2`。因此它不是独立 bundle ID 的应用，也不能据此认定可使用 CU。显示名称变化不会改变 CU 授权状态。
+开发产物显示名称 `CFBundleName` 和 `CFBundleDisplayName` 为 `Teft`，主 bundle identifier 为 `com.teft.app`。两个自有 XPC 服务和导入辅助应用分别使用 `com.teft.app.sandboxed-worker`、`com.teft.app.pidinfo` 和 `com.teft.app.import-status`；客户端按主应用的服务配置连接。可执行文件仍为 `iTerm2`，第三方框架和上游协议名称保留。
+
+这些标识由 Teft staging 在版本化副本中设置，并在签名后核对；上游 Xcode 原生构建和测试身份保留。新标识不代表 Computer Use 已获得授权。开发版不自动迁移旧 iTerm 数据目录，也不自动接管官方 `iterm2` URL 默认处理器。开发配置域继续使用 `system-term`；正式发布所需的自有 Team、app group、keychain access group 和全面凭证隔离尚未完成。
 
 Teft 开发版会阻断上游 Sparkle 更新，包括自动、手动和 delegate 更新路径。
 
