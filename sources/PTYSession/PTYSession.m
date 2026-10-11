@@ -3192,7 +3192,10 @@ ITERM_WEAKLY_REFERENCEABLE
 }
 
 - (NSSet<NSString *> *)jobsToIgnore {
-    NSArray<NSString *> *builtInJobsToIgnore = @[ @"login", @"iTerm2", @"ShellLauncher" ];
+    id configuredExecutableName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleExecutable"];
+    NSString *const executableName = ([configuredExecutableName isKindOfClass:[NSString class]] &&
+                                      [configuredExecutableName length] > 0) ? configuredExecutableName : @"iTerm2";
+    NSArray<NSString *> *builtInJobsToIgnore = @[ @"login", executableName, @"ShellLauncher" ];
     return [NSSet setWithArray:[[_profile objectForKey:KEY_JOBS] ?: @[] arrayByAddingObjectsFromArray:builtInJobsToIgnore]];
 }
 

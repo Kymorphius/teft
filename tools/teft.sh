@@ -92,14 +92,14 @@ case "$command" in
         fi
         ;;
     run)
-        executable="$(python3 - "$ROOT" <<'PY'
+        app="$(python3 - "$ROOT" <<'PY'
 import json
 from pathlib import Path
 import sys
 
 root = Path(sys.argv[1])
 sys.path.insert(0, str(root / "tools"))
-from stage_teft import BUNDLE_IDENTIFIER, read_plist
+from stage_teft import BUNDLE_IDENTIFIER, EXECUTABLE_NAME, read_plist
 
 record = json.loads((root / "tmp/teft-stage.json").read_text())
 if record.get("bundle_identifier") != BUNDLE_IDENTIFIER:
@@ -109,14 +109,17 @@ executable.relative_to((root / "build/teft/staged").resolve())
 info = read_plist(executable.parent.parent / "Info.plist")
 if info.get("CFBundleIdentifier") != BUNDLE_IDENTIFIER:
     raise SystemExit("The staged app does not have the expected Teft identity")
-print(executable)
+if info.get("CFBundleExecutable") != EXECUTABLE_NAME or executable.name != EXECUTABLE_NAME:
+    raise SystemExit("Build the current Teft executable first: tools/teft.sh build")
+print(executable.parent.parent.parent)
 PY
         )"
         # A new terminal must not inherit this agent's session identity or tokens.
+        # Launch the app bundle through Launch Services, as Finder does.
         exec env -i \
             "HOME=$HOME" "PATH=$PATH" "USER=${USER:-}" "LOGNAME=${LOGNAME:-}" \
             "TMPDIR=${TMPDIR:-/tmp}" "LANG=${LANG:-en_US.UTF-8}" \
             "SHELL=${SHELL:-/bin/zsh}" \
-            "$executable" -suite "$(basename "$ROOT")"
+            /usr/bin/open -a "$app" --args -suite "$(basename "$ROOT")"
         ;;
 esac

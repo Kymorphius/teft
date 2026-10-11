@@ -18,6 +18,12 @@ from xml.parsers.expat import ExpatError
 
 BRAND_KEYS = ("CFBundleName", "CFBundleDisplayName")
 BUNDLE_IDENTIFIER = "com.teft.app"
+EXECUTABLE_NAME = "Teft"
+HELPER_DISPLAY_NAMES = {
+    "com.teft.app.sandboxed-worker": "Teft Worker",
+    "com.teft.app.pidinfo": "Teft PID Info",
+    "com.teft.app.import-status": "Teft Import",
+}
 OWNED_HELPERS = (
     ("Contents/XPCServices/iTerm2SandboxedWorker.xpc",
      "com.iterm2.sandboxed-worker", "com.teft.app.sandboxed-worker",
@@ -93,6 +99,15 @@ def write_contents(path, data, app_root):
             os.unlink(temporary_name)
 
 
+def is_permission_description(key):
+    return key.startswith("NS") and key.endswith("UsageDescription")
+
+
+def brand_permission_description(value):
+    # ASCII boundaries also match the brand next to Chinese or Japanese text.
+    return re.sub(r"(?<![A-Za-z0-9_])iTerm2?(?![A-Za-z0-9_])", "Teft", value)
+
+
 def brand_plist(path, app_root, disable_updates=False):
     data = path.read_bytes()
     value = read_plist(path)
@@ -100,6 +115,9 @@ def brand_plist(path, app_root, disable_updates=False):
     for key in BRAND_KEYS:
         if disable_updates or key in value:
             value[key] = "Teft"
+    for key, description in value.items():
+        if is_permission_description(key) and isinstance(description, str):
+            value[key] = brand_permission_description(description)
     if disable_updates:
         value["SUEnableAutomaticChecks"] = False
         print("Staged app: SUEnableAutomaticChecks set to false.", file=sys.stderr)
@@ -161,8 +179,13 @@ def brand_strings(path, app_root):
             or semicolon.group() != ";"
         ):
             raise StageError(f"Expected key = value; entry at offset {key.start()}: {path}")
-        if key.group().strip('"') in BRAND_KEYS:
+        key_name = key.group().strip('"')
+        if key_name in BRAND_KEYS:
             replacements.append((value.start(), value.end(), '"Teft"'))
+        elif is_permission_description(key_name):
+            branded = brand_permission_description(value.group())
+            if branded != value.group():
+                replacements.append((value.start(), value.end(), branded))
     for start, end, value in reversed(replacements):
         content = content[:start] + value + content[end:]
     if replacements:
@@ -224,11 +247,17 @@ def stage(source_app, output_dir, suite):
     check_staged_links(app)
     expected_plists = {path: read_plist(path) for path in app.rglob("Info.plist")}
     staged_info = app / "Contents" / "Info.plist"
+    staged_executable = app / "Contents" / "MacOS" / EXECUTABLE_NAME
+    if executable_name != EXECUTABLE_NAME:
+        if staged_executable.exists() or staged_executable.is_symlink():
+            raise StageError(f"Staged executable name is already in use: {staged_executable}")
+        (app / "Contents" / "MacOS" / executable_name).rename(staged_executable)
     brand_plist(staged_info, app, disable_updates=True)
     staged_settings = read_plist(staged_info)
     staged_settings["TeftDefaultsSuite"] = suite
     staged_settings["SUDefaultsDomain"] = suite
     staged_settings["CFBundleIdentifier"] = BUNDLE_IDENTIFIER
+    staged_settings["CFBundleExecutable"] = EXECUTABLE_NAME
     for relative_path, upstream_id, teft_id, service_key in OWNED_HELPERS:
         helper_info = app / relative_path / "Contents" / "Info.plist"
         helper_settings = expected_plists.get(helper_info)
@@ -236,6 +265,8 @@ def stage(source_app, output_dir, suite):
             raise StageError(f"Missing or unexpected owned helper: {relative_path}")
         helper_settings = helper_settings.copy()
         helper_settings["CFBundleIdentifier"] = teft_id
+        for key in BRAND_KEYS:
+            helper_settings[key] = HELPER_DISPLAY_NAMES[teft_id]
         expected_plists[helper_info] = helper_settings
         write_contents(helper_info, plistlib.dumps(helper_settings, sort_keys=False), app)
         if service_key:
@@ -260,6 +291,10 @@ def stage(source_app, output_dir, suite):
     expected["SUDefaultsDomain"] = suite
     expected["SUEnableAutomaticChecks"] = False
     expected["CFBundleIdentifier"] = BUNDLE_IDENTIFIER
+    expected["CFBundleExecutable"] = EXECUTABLE_NAME
+    for key, description in original.items():
+        if is_permission_description(key) and isinstance(description, str):
+            expected[key] = brand_permission_description(description)
     for _, _, teft_id, service_key in OWNED_HELPERS:
         if service_key:
             expected[service_key] = teft_id
@@ -267,7 +302,6 @@ def stage(source_app, output_dir, suite):
     for path, expected_settings in expected_plists.items():
         if read_plist(path) != expected_settings:
             raise StageError(f"Signed property-list readback differs from allowed changes: {path}")
-    staged_executable = app / "Contents" / "MacOS" / executable_name
     if not staged_executable.is_file() or not os.access(staged_executable, os.X_OK):
         raise StageError(f"Staged executable is missing or not executable: {staged_executable}")
     return {
