@@ -509,6 +509,8 @@ Improvements:
   enough of them to slow iTerm2 down over time.
 
 Bug Fixes:
+- Fix Teft’s name in quit confirmations, menus,
+  settings, and authorization prompts.
 - On macOS 26, hiding a hotkey window when no
   other iTerm2 windows are open once again
   returns focus to the previous app right away,

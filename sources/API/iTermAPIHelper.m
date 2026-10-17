@@ -547,9 +547,14 @@ static BOOL iTermAPIHelperLastApplescriptAuthRequiredSetting;
     NSString *path = [self noauthPath];
     path = [path stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"];
     path = [path stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\\\\\""];
-    NSString *sourceCode = [NSString stringWithFormat:@"do shell script \"umask 077; TF=$(mktemp); printf '%%s' '%@' > \\\"$TF\\\" && chmod a+r \\\"$TF\\\" && mv \\\"$TF\\\" \\\"%@\\\" || rm -f \\\"$TF\\\"\" with prompt \"iTerm2 needs to modify a secure setting.\" with administrator privileges",
+    NSString *const prompt = NSLocalizedStringWithDefaultValue(@"SecureUserDefaults.ModifySingleSettingPrompt", nil, [NSBundle mainBundle], @"iTerm2 needs to modify a secure setting.", @"Authorization prompt shown when iTerm2 needs privileges to modify one secure setting");
+    // Keep a localized prompt inside its AppleScript string literal.
+    NSString *const escapedPrompt = [[prompt stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"]
+                                    stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
+    NSString *sourceCode = [NSString stringWithFormat:@"do shell script \"umask 077; TF=$(mktemp); printf '%%s' '%@' > \\\"$TF\\\" && chmod a+r \\\"$TF\\\" && mv \\\"$TF\\\" \\\"%@\\\" || rm -f \\\"$TF\\\"\" with prompt \"%@\" with administrator privileges",
                             [self noauthMagic],
-                            path];
+                            path,
+                            escapedPrompt];
     NSAppleScript *script = [[NSAppleScript alloc] initWithSource:sourceCode];
     NSDictionary<NSString *, id> *dict = nil;
     [script executeAndReturnError:&dict];

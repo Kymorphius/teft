@@ -33,6 +33,69 @@ OWNED_HELPERS = (
     ("Contents/MacOS/iTerm2ImportStatus.app",
      "com.googlecode.iterm2.iTerm2ImportStatus", "com.teft.app.import-status", None),
 )
+# Reviewed display strings only. Keys, selectors, URLs, compatibility names,
+# upstream credits, and third-party product names keep their original identity.
+UI_BRANDING_CATALOGS = {
+    "xcstrings/Localizable.xcstrings": (
+        "APIHelper.AllowConnectionMessage",
+        "APIHelper.EnablePythonAPIMessage",
+        "Appearance.ExcludeFromDockWarning",
+        "GeneralPrefs.ModelUpdateDownloaded",
+        "GeneralPrefs.RestartRequired",
+        "GeneralPrefs.WindowRestorationDisabledMessage13",
+        "GeneralPrefs.WindowRestorationDisabledMessageLegacy",
+        "ImportExport.DryRunCompleteBody",
+        "ImportExport.DryRunConfirmTitle",
+        "ImportExport.ExportPanelTitle",
+        "ImportExport.ImportConfirmBody",
+        "InstanceLock.Heading",
+        "InstanceLock.Message",
+        "InstanceLock.SuiteMessage",
+        "KeysPreferences.HotkeyPanelExplanation",
+        "LaunchServices.NotDefaultHandlerTitle",
+        "OpenLink.FileTitle",
+        "OpenLink.Heading",
+        "OpenLink.OpenIniTerm2",
+        "OpenLink.WebTitle",
+        "PTYSession.AIChatCouldNotOpen",
+        "PTYSession.AlreadyAttachedTmux",
+        "PTYSession.IT2AuthorizationPrompt",
+        "PasswordManager.ResetConfigurationWarning",
+        "PasswordManagerAuth.AppCancel",
+        "PasswordManagerAuth.InvalidContext",
+        "PasteboardReporter.ConfirmEnableBody",
+        "PromptOnClose.ConfirmQuitEnabled",
+        "PromptOnClose.ConfirmQuitWithoutWindows",
+        "PseudoTerminal.RestartToEnableFeature",
+        "QuitAlert.SessionsRestored",
+        "QuitAlert.Title",
+        "RemotePreferences.RemoteChangedOverwritePrompt",
+        "RemotePreferences.SyncDataFilesPrompt",
+        "RestorableState.RestoreWindowsMessage",
+        "RestorableState.SlowRestoreBody",
+        "SecureUserDefaults.CreateFolderPrompt",
+        "SecureUserDefaults.ModifySettingsPrompt",
+        "SecureUserDefaults.ModifySingleSettingPrompt",
+        "StatusMenu.QuitiTerm2",
+        "SuppressedAlerts.ShowRememberedTooltip",
+        "Warning.RememberedSelectionExplanation",
+    ),
+    "sources/MainMenu/mul.lproj/MainMenu.xcstrings": (
+        "56.title", "57.title", "111.title", "134.title", "136.title",
+        "233.title", "1470.title", "it2-au-th0.title",
+    ),
+    "sources/Settings/mul.lproj/PreferencePanel.xcstrings": (
+        "6Fq-pl-5nd.ibShadowedToolTip", "7dn-rM-ht2.title",
+        "7pa-hD-WIi.ibExternalAccessibilityDescription", "4758.title",
+        "Heb-gk-qk8.title", "iWk-HJ-EKg.ibShadowedToolTip",
+        "mlk-a6-xcL.ibShadowedToolTip", "NtK-Fc-1Kb.ibShadowedToolTip",
+        "OWt-qh-bb4.ibShadowedToolTip", "wjs-vG-qf2.ibShadowedToolTip",
+        "zde-kb-c7t.ibShadowedToolTip",
+    ),
+    "sources/AboutWindow/mul.lproj/AboutWindow.xcstrings": (
+        "U4n-GV-8aZ.title",
+    ),
+}
 TOKEN = re.compile(
     r'(?P<space>\s+)|(?P<comment>//[^\r\n]*|/\*.*?\*/)|'
     r'(?P<quoted>"(?:\\.|[^"\\])*")|'
@@ -87,7 +150,7 @@ def write_contents(path, data, app_root):
     """Replace only a staged file, including when the original is a symlink."""
     if not inside(path.parent.resolve(), app_root):
         raise StageError(f"Refusing to write outside the staged app: {path}")
-    mode = path.stat().st_mode & 0o777
+    mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
     descriptor, temporary_name = tempfile.mkstemp(prefix=".teft-", dir=path.parent)
     try:
         with os.fdopen(descriptor, "wb") as stream:
@@ -106,6 +169,47 @@ def is_permission_description(key):
 def brand_permission_description(value):
     # ASCII boundaries also match the brand next to Chinese or Japanese text.
     return re.sub(r"(?<![A-Za-z0-9_])iTerm2?(?![A-Za-z0-9_])", "Teft", value)
+
+
+def brand_ui_strings(app_root, catalog_root=None):
+    """Overlay reviewed UI values, including English defaults embedded in code."""
+    if read_plist(app_root / "Contents/Info.plist").get("CFBundleIdentifier") != BUNDLE_IDENTIFIER:
+        raise StageError("UI branding requires the staged Teft bundle identity.")
+    if catalog_root is None:
+        catalog_root = Path(__file__).resolve().parents[1]
+    resources = app_root / "Contents/Resources"
+    count = 0
+    for relative_path, keys in UI_BRANDING_CATALOGS.items():
+        catalog_path = catalog_root / relative_path
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        entries = catalog["strings"]
+        by_language = {}
+        for key in keys:
+            if key not in entries:
+                raise StageError(f"Missing reviewed UI key {key}: {catalog_path}")
+            localizations = entries[key].get("localizations", {})
+            if "en" not in localizations:
+                raise StageError(f"Missing English UI default for {key}: {catalog_path}")
+            for language, localization in localizations.items():
+                if not re.fullmatch(r"[A-Za-z0-9-]+", language):
+                    raise StageError(f"Invalid UI localization name: {language}")
+                value = localization.get("stringUnit", {}).get("value")
+                if not isinstance(value, str):
+                    raise StageError(f"Expected a flat UI string for {key}: {catalog_path}")
+                by_language.setdefault(language, {})[key] = brand_permission_description(value)
+        for language, overrides in by_language.items():
+            path = resources / f"{language}.lproj" / f"{catalog_path.stem}.strings"
+            if not inside(path.parent.resolve(), app_root):
+                raise StageError(f"UI strings point outside the staged app: {path}")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            original = read_plist(path) if path.exists() else {}
+            expected = {**original, **overrides}
+            if expected != original:
+                write_contents(path, plistlib.dumps(expected, sort_keys=False), app_root)
+            if read_plist(path) != expected:
+                raise StageError(f"UI string readback differs from allowed changes: {path}")
+            count += len(overrides)
+    return count
 
 
 def brand_plist(path, app_root, disable_updates=False):
@@ -276,6 +380,7 @@ def stage(source_app, output_dir, suite):
         if not inside(strings_path.resolve(), app):
             raise StageError(f"Localized strings point outside the staged app: {strings_path}")
         brand_strings(strings_path, app)
+    ui_string_count = brand_ui_strings(app)
     codesign("--force", "--deep", "--sign", "-", str(app))
     # Apply explicit identifiers only to the owned bundles, never with --deep.
     # Passing --identifier together with --deep would also rename framework signatures.
@@ -310,6 +415,7 @@ def stage(source_app, output_dir, suite):
         "bundle_identifier": readback["CFBundleIdentifier"],
         "display_name": readback["CFBundleDisplayName"],
         "defaults_suite": readback["TeftDefaultsSuite"],
+        "branded_ui_strings": ui_string_count,
     }
 
 

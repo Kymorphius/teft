@@ -10,6 +10,17 @@
 #import "ITAddressBookMgr.h"
 #import "NSArray+iTerm.h"
 
+static NSString *iTermPromptOnCloseApplicationDisplayName(void) {
+    NSBundle *const bundle = [NSBundle mainBundle];
+    for (NSString *key in @[ @"CFBundleDisplayName", @"CFBundleName" ]) {
+        NSString *const name = [bundle objectForInfoDictionaryKey:key];
+        if ([name isKindOfClass:[NSString class]] && name.length > 0) {
+            return name;
+        }
+    }
+    return @"iTerm2";
+}
+
 @interface iTermPromptOnCloseReason()
 @property (nonatomic, readonly) NSNumber *priority;
 + (NSString *)groupFooter;
@@ -219,11 +230,21 @@
 }
 
 + (instancetype)alwaysConfirmQuitPreferenceEnabled {
-    return [[[iTermPromptOnCloseMessageReason alloc] initWithMessage:@"“Settings > General > Closing > Confirm Quit iTerm2” is enabled and there is at least one terminal window." priority:100] autorelease];
+    NSString *const message = [NSString localizedStringWithFormat:
+        NSLocalizedStringWithDefaultValue(@"PromptOnClose.ConfirmQuitEnabled", nil, [NSBundle mainBundle],
+                                          @"“Settings > General > Closing > Confirm Quit %@” is enabled and there is at least one terminal window.",
+                                          @"Reason for asking for confirmation before quitting; %@ is the application’s display name."),
+        iTermPromptOnCloseApplicationDisplayName()];
+    return [[[iTermPromptOnCloseMessageReason alloc] initWithMessage:message priority:100] autorelease];
 }
 
 + (instancetype)alwaysConfirmQuitPreferenceEvenIfThereAreNoWindowsEnabled {
-    return [[[iTermPromptOnCloseMessageReason alloc] initWithMessage:@"“Settings > General > Closing > Confirm Quit iTerm2” and “Even if there are no windows” is enabled." priority:100] autorelease];
+    NSString *const message = [NSString localizedStringWithFormat:
+        NSLocalizedStringWithDefaultValue(@"PromptOnClose.ConfirmQuitWithoutWindows", nil, [NSBundle mainBundle],
+                                          @"“Settings > General > Closing > Confirm Quit %@” and “Even if there are no windows” is enabled.",
+                                          @"Reason for asking for confirmation before quitting even without windows; %@ is the application’s display name."),
+        iTermPromptOnCloseApplicationDisplayName()];
+    return [[[iTermPromptOnCloseMessageReason alloc] initWithMessage:message priority:100] autorelease];
 }
 
 + (instancetype)closingMultipleSessionsPreferenceEnabled {

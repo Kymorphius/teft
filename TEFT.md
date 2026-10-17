@@ -30,6 +30,8 @@ tools/teft.sh run
 
 主包和各语言 `InfoPlist.strings` 的权限说明同步使用 Teft，保留原权限用途与键集合。可运行 `python3 tests/test_teft_stage_branding.py` 检查本地化格式与文字替换；这项检查不触发系统授权弹窗。
 
+退出确认、恢复说明、退出原因、应用菜单、设置页、关于页产品标题及常见授权提示也使用 Teft。staging 按明确的表与键清单覆盖六种语言的显示值，并补入英文覆盖表，避免程序内的上游英文默认值漏出；本地化查询键、菜单标识和其他资源保留。上游赞助者、版权署名、第三方产品及协议名称不改写。需要正常退出旧版并启动新构建后，新的界面文案才会生效。
+
 这些标识由 Teft staging 在版本化副本中设置，并在签名后核对；上游 Xcode 原生构建和测试身份保留。新标识不代表 Computer Use 已获得授权。开发版不自动迁移旧 iTerm 数据目录，也不自动接管官方 `iterm2` URL 默认处理器。开发配置域由运行时的目录名 suite 决定；正式发布所需的自有 Team、app group、keychain access group 和全面凭证隔离尚未完成。
 
 Teft 开发版会阻断上游 Sparkle 更新，包括自动、手动和 delegate 更新路径。

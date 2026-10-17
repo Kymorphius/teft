@@ -141080,6 +141080,90 @@
         }
       }
     },
+    "PromptOnClose.ConfirmQuitEnabled" : {
+      "comment" : "Reason for asking for confirmation before quitting; %@ is the application’s display name.",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Einstellungen > Allgemein > Schließen > Beenden von %@ bestätigen” ist aktiviert und mindestens ein Terminalfenster ist geöffnet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "“Settings > General > Closing > Confirm Quit %@” is enabled and there is at least one terminal window."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「設定 > 一般 > 終了 > %@ の終了を確認」が有効で、少なくとも1つのターミナルウインドウが開いています。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Ajustes > Geral > Fechamento > Confirmar encerramento do %@” está ativado e há pelo menos uma janela de terminal aberta."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включён параметр «Настройки > Основные > Закрытие > Подтверждать выход из %@», и открыто хотя бы одно окно терминала."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已启用“设置 > 通用 > 关闭 > 确认退出 %@”，且至少打开了一个终端窗口。"
+          }
+        }
+      }
+    },
+    "PromptOnClose.ConfirmQuitWithoutWindows" : {
+      "comment" : "Reason for asking for confirmation before quitting even without windows; %@ is the application’s display name.",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Einstellungen > Allgemein > Schließen > Beenden von %@ bestätigen” und “Auch wenn keine Fenster geöffnet sind” sind aktiviert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "“Settings > General > Closing > Confirm Quit %@” and “Even if there are no windows” is enabled."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「設定 > 一般 > 終了 > %@ の終了を確認」と「ウインドウがない場合も」が有効です。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Ajustes > Geral > Fechamento > Confirmar encerramento do %@” e “Mesmo se não houver janelas” estão ativados."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включены параметры «Настройки > Основные > Закрытие > Подтверждать выход из %@» и «Даже если нет окон»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已启用“设置 > 通用 > 关闭 > 确认退出 %@”和“即使没有窗口”。"
+          }
+        }
+      }
+    },
     "PseudoTerminal.AddTabToGroup" : {
       "comment" : "Menu item that adds a tab to a group",
       "extractionState" : "extracted_with_value",
